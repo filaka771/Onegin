@@ -1,10 +1,13 @@
 #include <memory.h>
 #include <unistd.h>
 #include <wchar.h>
+#include <wctype.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <locale.h>
 #include <sys/stat.h>
+
+#include "sort.h"
 
 #define FILE_NAME "onegin.txt"
 
@@ -55,7 +58,11 @@ Text read_file(const char* file_name){
     // Read file and replace \n with \0
     while(fgetws(line, 512, file)) {
         size_t line_len = wcslen(line);
-        if(num_lines == capacity - 1){
+        if (line[0] == L'\n'){
+            continue;
+        }
+
+        if (num_lines == capacity - 1){
             capacity *= 1.5; //TODO: make coefficient defined constant
             lines = (wchar_t**)realloc((void*)lines, capacity * sizeof(wchar_t*));
         }
@@ -138,10 +145,68 @@ const wchar_t** split_lines(const wchar_t* text){
 
 }
 
-int compare_wstrings(const void *a, const void *b) {
-    const wchar_t **str1 = (const wchar_t **)a;
-    const wchar_t **str2 = (const wchar_t **)b;
-    return wcscmp(*str1, *str2);
+int f_compare_wstrings(const void* a, const void* b){
+    int direction = 1;
+    wchar_t* str1 = *(wchar_t**)a;
+    wchar_t* str2 = *(wchar_t**)b;
+
+    while (*str1 != L'\0' || *str2 != L'\0'){
+        while (towlower(*str1) == L' ') str1++;
+        while (towlower(*str2) == L' ') str2++;
+        if (towlower(*str1) == towlower(*str2)){
+            str1 += direction;
+            str2 += direction;
+            continue;
+        }
+
+        if (towlower(*str1) < towlower(*str2)){
+            return -1;
+        }
+        else if (towlower(*str1) > towlower(*str2)){
+            return 1;
+        }
+        if (*str1 != L'\0') str1++;
+        if (*str2 != L'\0') str2++;
+    }
+    return 0;
+}
+
+int r_compare_wstrings(const void* a, const void* b){
+    int direction = -1;
+    wchar_t* str1 = (wchar_t*)a;
+    wchar_t* str2 = (wchar_t*)b;
+
+    while (*str1 != L'\0' || *str2 != L'\0'){
+
+        if ((*str1 == L' ' && *str2 == L' ') || (towlower(*str1) == towlower(*str2))){
+            str1 += direction;
+            str2 += direction;
+            continue;
+        }
+
+        else if (towlower(*str1 == L' ')){
+            str1 += direction;
+            continue;
+        }
+
+        else if (towlower(*str2 == L' ')){
+            str2 += direction;
+            continue;
+        }
+        else if (towlower(*str1) < towlower(*str2)){
+            return -1;
+        }
+
+        else return 1;
+    }
+    if (towlower(*str1) == L'\0'){
+        return 1;
+    }
+
+    else if (towlower(*str2) == L'\0'){
+        return -1;
+    }
+    return 0;
 }
 
 int main() {
@@ -155,7 +220,8 @@ int main() {
 
 
     // Sort lines alphabetically (skip first line if needed)
-    qsort(text.flines, text.num_lines - 1, sizeof(wchar_t*), compare_wstrings);
+    quick_sort(text.flines, text.num_lines - 1, sizeof(wchar_t*), f_compare_wstrings);
+    qsort(text.rlines, text.num_lines - 1, sizeof(wchar_t*), r_compare_wstrings);
 
     // Print sorted lines
     for (size_t i = 1; i < text.num_lines; i++) {
